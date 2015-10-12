@@ -23,7 +23,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-int gettime(struct rtcdate *);
+void gettime(struct rtcdate *);
+int settickets(int);
 
 // ulib.c
 int stat(char*, struct stat*);

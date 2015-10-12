@@ -13,6 +13,8 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+#define STARTING_TICKETS 10
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -50,6 +52,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->tickets = STARTING_TICKETS;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -269,9 +272,18 @@ void
 scheduler(void)
 {
   struct proc *p;
-  int foundproc = 1;
+  int total_tickets = 0;
+  int foundproc = 0;
+  int winner = 0;
+  int counter = 0;
 
   for(;;){
+    // Need to reset all of these every time through the loop
+    winner = 0;
+    counter = 0;
+    total_tickets = 0;
+    foundproc = 0;
+
     // Enable interrupts on this processor.
     sti();
 
@@ -280,10 +292,32 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
+    // Count the number of tickets across runnable procs. We could
+    // avoid this by tracking every place in the scheduler where
+    // process become runnable or not runnable and adding/subtracting
+    // tickets there, but it would be more difficult and this seems
+    // to perform fine.
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        total_tickets += (p->state == RUNNABLE) ? p->tickets : 0;
+    }
+
+    if (total_tickets > 0) {
+      winner = random_at_most(total_tickets - 1);
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE)
+          continue;
+
+        counter += p->tickets;
+
+        if (counter > winner) {
+          foundproc = 1;
+          break;
+        }
+      }
+    }
+
+    if (foundproc) {
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -297,9 +331,12 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
+      release(&ptable.lock);
     }
-    release(&ptable.lock);
-
+    else {
+      release(&ptable.lock);
+      hlt();
+    }
   }
 }
 
