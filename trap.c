@@ -77,7 +77,19 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-   
+  case T_PGFLT: {
+    char *mem = kalloc();
+    uint a = PGROUNDDOWN(rcr2());
+    if(mem == 0){
+      cprintf("out of memory\n");
+      proc->killed = 1;
+      break;
+    }
+    mappages(proc->pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
+    memset(mem, 0, PGSIZE);
+    switchuvm(proc);
+    break;
+  }
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){
