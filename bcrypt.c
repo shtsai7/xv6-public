@@ -36,14 +36,7 @@
 
 #define NULL 0
 
-typedef uchar uint8_t;
-typedef uchar u_int8_t;
-typedef ushort uint16_t;
-typedef ushort u_int16_t;
-typedef uint uint32_t;
-typedef uint u_int32_t;
-typedef uint size_t;
-
+#include "bcrypt.h"
 #include "blf.h"
 
 int
@@ -57,26 +50,11 @@ timingsafe_bcmp(const void *b1, const void *b2, size_t n)
     return (ret != 0);
 }
 
-/* This implementation is adaptable to current computing power.
- * You can have up to 2^31 rounds which should be enough for some
- * time to come.
- */
-
-#define BCRYPT_VERSION '2'
-#define BCRYPT_MAXSALT 16	/* Precomputation is just so nice */
-#define BCRYPT_WORDS 6		/* Ciphertext words */
-#define BCRYPT_MINLOGROUNDS 4	/* we have log2(rounds) in salt */
-
-#define	BCRYPT_SALTSPACE	(7 + (BCRYPT_MAXSALT * 4 + 2) / 3 + 1)
-#define	BCRYPT_HASHSPACE	61
-
-#define LOGR 12
-
 /*
  * the core bcrypt function
  */
-static int
-bcrypt_hashpass(const char *key, const uchar *csalt, char *encrypted, size_t encryptedlen, uint8_t logr)
+int
+bcrypt_hashpass(const char *key, const uchar *csalt, uchar *encrypted, uint8_t logr)
 {
 	blf_ctx state;
 	u_int32_t rounds, i, k;
@@ -85,9 +63,6 @@ bcrypt_hashpass(const char *key, const uchar *csalt, char *encrypted, size_t enc
 	u_int8_t salt_len;
 	u_int8_t ciphertext[4 * BCRYPT_WORDS] = "OrpheanBeholderScryDoubt";
 	u_int32_t cdata[BCRYPT_WORDS];
-
-	if (encryptedlen < BCRYPT_HASHSPACE)
-		goto inval;
 
     /* strlen() returns a size_t, but the function calls
      * below result in implicit casts to a narrower integer
@@ -98,11 +73,11 @@ bcrypt_hashpass(const char *key, const uchar *csalt, char *encrypted, size_t enc
         key_len = 72;
     key_len++; /* include the NUL */
 
-	if (logr < BCRYPT_MINLOGROUNDS || logr > 31)
+	if (logr < BCRYPT_MINBCRYPT_DEFAULT_LOGROUNDS || logr > 31)
 		goto inval;
 	/* Computer power doesn't increase linearly, 2^x should be fine */
 	rounds = 1U << logr;
-	salt_len = BCRYPT_MAXSALT;
+	salt_len = BCRYPT_SALTLEN;
 
 	/* Setting up S-Boxes and Subkeys */
 	Blowfish_initstate(&state);
@@ -147,14 +122,13 @@ inval:
  * user friendly functions
  */
 int
-bcrypt_checkpass(const char *pass, const uchar *salt, const char *goodhash)
+bcrypt_checkpass(const char *pass, const uchar *salt, const uchar *goodhash)
 {
-	char hash[BCRYPT_HASHSPACE];
+	uchar hash[BCRYPT_HASHLEN];
 
-	if (bcrypt_hashpass(pass, salt, hash, sizeof(hash), LOGR) != 0)
+	if (bcrypt_hashpass(pass, salt, hash, BCRYPT_DEFAULT_LOGR) != 0)
 		return -1;
-	if (strlen(hash) != strlen(goodhash) ||
-	    timingsafe_bcmp(hash, goodhash, strlen(goodhash)) != 0) {
+	if (timingsafe_bcmp(hash, goodhash, BCRYPT_HASHLEN) != 0) {
 		return -1;
 	}
 
@@ -165,12 +139,12 @@ bcrypt_checkpass(const char *pass, const uchar *salt, const char *goodhash)
 /*
  * classic interface
  */
-char *
+uchar *
 bcrypt(const char *pass, const uchar *salt)
 {
-	static char    gencrypted[BCRYPT_HASHSPACE];
+	static uchar gencrypted[BCRYPT_HASHLEN];
 
-	if (bcrypt_hashpass(pass, salt, gencrypted, sizeof(gencrypted), LOGR) != 0)
+	if (bcrypt_hashpass(pass, salt, gencrypted, BCRYPT_DEFAULT_LOGR) != 0)
 		return NULL;
 
 	return gencrypted;
