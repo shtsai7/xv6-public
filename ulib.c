@@ -52,8 +52,8 @@ strchr(const char *s, char c)
 char*
 gets(char *buf)
 {
-  int i, cc;
-  char c;
+  int i = 0, cc = 0;
+  char c = 0;
 
   while(c != '\n' && c != '\r') {
     cc = read(0, &c, 1);
