@@ -7,6 +7,21 @@
 
 char *argv[] = { "sh", 0 };
 
+int checkpass(void) {
+  char pass[64] = {0};
+  int is_valid = 0;
+  printf(1, "Password: ");
+  gets(pass);
+
+  if (strcmp(pass, "hunter2\n") == 0) {
+      is_valid = 1;
+  }
+  else {
+    printf(1, "Incorrect, try again.\n");
+  }
+  return is_valid;
+}
+
 int
 main(void)
 {
@@ -18,6 +33,10 @@ main(void)
   }
   dup(0);  // stdout
   dup(0);  // stderr
+
+  while (!checkpass()) {
+    // Don't log in until password correct
+  }
 
   for(;;){
     printf(1, "init: starting sh\n");
