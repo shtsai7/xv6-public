@@ -2,6 +2,7 @@
 #include "stat.h"
 #include "user.h"
 
+#define BUFSZ 512
 char *buf;
 
 void
@@ -9,7 +10,7 @@ cat(int fd)
 {
   int n;
 
-  while((n = read(fd, buf, sizeof(buf))) > 0)
+  while((n = read(fd, buf, BUFSZ)) > 0)
     write(1, buf, n);
   if(n < 0){
     printf(1, "cat: read error\n");
@@ -22,7 +23,7 @@ main(int argc, char *argv[])
 {
   int fd, i;
 
-  buf = sbrk(512);
+  buf = sbrk(BUFSZ);
 
   if(argc <= 1){
     cat(0);
