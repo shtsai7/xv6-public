@@ -43,7 +43,7 @@ struct cmd *parsecmd(char*);
 void
 runcmd(struct cmd *cmd)
 {
-  int p[2], r;
+  int p[2], r, err;
   struct execcmd *ecmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
@@ -60,21 +60,61 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
-    execvp(ecmd->argv[0], ecmd->argv);
+    err = execvp(ecmd->argv[0], ecmd->argv);
+    if (err < 0) {
+      perror(ecmd->argv[0]);
+      exit(-1);
+    }
     break;
 
   case '>':
   case '<':
     rcmd = (struct redircmd*)cmd;
-    fprintf(stderr, "redir not implemented\n");
-    // Your code here ...
+    int newfd;
+    if (cmd->type == '>') {
+      newfd = open(rcmd->file, rcmd->mode, S_IRWXU);
+    } else {
+      newfd = open(rcmd->file, rcmd->mode);
+    }
+    if (newfd < 0) {
+      perror("error open");
+      exit(-1);
+    }
+    err = dup2(newfd, rcmd->fd);
+    if (err < 0) {
+      perror("error dup2");
+    }
     runcmd(rcmd->cmd);
     break;
 
   case '|':
     pcmd = (struct pipecmd*)cmd;
-    fprintf(stderr, "pipe not implemented\n");
     // Your code here ...
+    if (pipe(p) < 0) {
+      perror("error pipe");
+    }
+    int rv;
+    rv = fork();
+    if (rv == 0) {
+      dup2(p[1], 1);
+      if (close(p[0]) != 0) {
+        fprintf(stderr, "fail to close %d", p[1]);
+      }
+      if (close(p[1]) != 0) {
+        fprintf(stderr, "fail to close %d", p[1]);
+      }
+      runcmd(pcmd->left);
+    } else {
+      dup2(p[0], 0);
+      if (close(p[0]) != 0) {
+        fprintf(stderr, "fail to close %d", p[1]);
+      }
+      if (close(p[1]) != 0) {
+        fprintf(stderr, "fail to close %d", p[1]);
+      }
+      runcmd(pcmd->right);
+    }
+    wait(&r);
     break;
   }    
   exit(0);
